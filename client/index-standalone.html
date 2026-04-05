@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Virtual Cosmos</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #0f0f1a;
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    /* Login Screen */
+    #loginScreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .login-box {
+      background: rgba(255,255,255,0.1);
+      padding: 40px 60px;
+      border-radius: 20px;
+      text-align: center;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .login-box h1 {
+      color: white;
+      font-size: 36px;
+      margin-bottom: 10px;
+    }
+
+    .login-box h1 span {
+      color: #00ff88;
+    }
+
+    .login-box p {
+      color: #888;
+      margin-bottom: 30px;
+    }
+
+    .login-box input {
+      width: 100%;
+      padding: 15px 20px;
+      border: none;
+      border-radius: 30px;
+      background: rgba(255,255,255,0.1);
+      color: white;
+      font-size: 18px;
+      outline: none;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .login-box input::placeholder {
+      color: #666;
+    }
+
+    .login-box input:focus {
+      background: rgba(255,255,255,0.15);
+      box-shadow: 0 0 20px rgba(0,255,136,0.3);
+    }
+
+    .login-box button {
+      width: 100%;
+      padding: 15px 40px;
+      border: none;
+      border-radius: 30px;
+      background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
+      color: #0f0f1a;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .login-box button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 30px rgba(0,255,136,0.5);
+    }
+
+    .login-features {
+      margin-top: 30px;
+      color: #666;
+      font-size: 14px;
+    }
+
+    .login-features span {
+      color: #888;
+      margin: 0 10px;
+    }
+
+    /* Main layout */
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* Map area */
+    .map-area {
+      flex: 1;
+      position: relative;
+      background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+      overflow: hidden;
+    }
+
+    /* Player avatar */
+    .player {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.1s;
+      z-index: 10;
+    }
+
+    .player.self {
+      border: 3px solid #00ff88;
+      box-shadow: 0 0 20px rgba(0,255,136,0.5);
+    }
+
+    .player.other {
+      border: 3px solid #ff6b6b;
+      box-shadow: 0 0 15px rgba(255,107,107,0.4);
+    }
+
+    .player-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      color: white;
+      font-weight: bold;
+    }
+
+    .player-name {
+      position: absolute;
+      bottom: -25px;
+      background: rgba(0,0,0,0.8);
+      padding: 3px 10px;
+      border-radius: 10px;
+      font-size: 12px;
+      color: white;
+      white-space: nowrap;
+    }
+
+    .player.self .player-name {
+      color: #00ff88;
+    }
+
+    /* Chat panel */
+    .chat-panel {
+      width: 320px;
+      background: #1a1a2e;
+      border-left: 1px solid #333;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chat-header {
+      padding: 15px 20px;
+      background: #16213e;
+      border-bottom: 1px solid #333;
+    }
+
+    .chat-header h2 {
+      color: white;
+      font-size: 16px;
+      margin-bottom: 5px;
+    }
+
+    .chat-header p {
+      color: #888;
+      font-size: 12px;
+    }
+
+    .chat-messages {
+      flex: 1;
+      padding: 15px;
+      overflow-y: auto;
+    }
+
+    .chat-message {
+      margin-bottom: 15px;
+    }
+
+    .chat-message .sender {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 3px;
+    }
+
+    .chat-message .text {
+      background: #252542;
+      padding: 10px 15px;
+      border-radius: 15px;
+      color: white;
+      font-size: 14px;
+      max-width: 85%;
+    }
+
+    .chat-message.self .text {
+      background: #00ff88;
+      color: #0f0f1a;
+    }
+
+    .chat-input-area {
+      padding: 15px;
+      border-top: 1px solid #333;
+    }
+
+    .chat-input {
+      width: 100%;
+      padding: 12px 15px;
+      border: none;
+      border-radius: 25px;
+      background: #252542;
+      color: white;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .chat-input::placeholder {
+      color: #666;
+    }
+
+    .chat-input:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Bottom controls */
+    .controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      background: rgba(0,0,0,0.8);
+      padding: 10px 20px;
+      border-radius: 30px;
+    }
+
+    .control-btn {
+      background: #333;
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .control-btn:hover {
+      background: #444;
+    }
+
+    .control-btn.active {
+      background: #00ff88;
+      color: #0f0f1a;
+    }
+
+    /* Status */
+    .status {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background: rgba(0,0,0,0.8);
+      padding: 10px 20px;
+      border-radius: 20px;
+      color: white;
+      font-size: 14px;
+      z-index: 100;
+    }
+
+    .status.connected {
+      border-left: 3px solid #00ff88;
+    }
+
+    /* Users count */
+    .users-count {
+      position: fixed;
+      top: 20px;
+      right: 340px;
+      background: rgba(0,0,0,0.8);
+      padding: 10px 20px;
+      border-radius: 20px;
+      color: white;
+      font-size: 14px;
+      z-index: 100;
+    }
+
+    /* No connection message */
+    .no-chat {
+      padding: 40px 20px;
+      text-align: center;
+      color: #666;
+    }
+
+    .no-chat-icon {
+      font-size: 40px;
+      margin-bottom: 10px;
+    }
+
+    /* Canvas for game rendering */
+    #gameCanvas {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+  <!-- Login Screen -->
+  <div id="loginScreen">
+    <div class="login-box">
+      <h1>Virtual <span>Cosmos</span></h1>
+      <p>Enter your name to join the virtual world</p>
+      <input type="text" id="usernameInput" placeholder="Enter your name..." maxlength="20">
+      <button id="joinBtn">Join Cosmos 🚀</button>
+      <div class="login-features">
+        <span>🎮 Move with WASD</span>
+        <span>💬 Chat when close</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="status" id="status" style="display: none;">Connecting...</div>
+  <div class="users-count" id="usersCount" style="display: none;">👥 0 Online</div>
+  
+  <div class="container" id="mainContainer" style="display: none;">
+    <div class="map-area" id="mapArea">
+      <!-- Canvas will be rendered here -->
+    </div>
+    
+    <div class="chat-panel" id="chatPanel">
+      <div class="chat-header">
+        <h2>💬 Chat</h2>
+        <p id="chatStatus">Move close to someone to chat</p>
+      </div>
+      <div class="chat-messages" id="chatMessages">
+        <div class="no-chat">
+          <div class="no-chat-icon">💬</div>
+          <p>Walk close to someone to start chatting!</p>
+        </div>
+      </div>
+      <div class="chat-input-area">
+        <input type="text" class="chat-input" id="chatInput" placeholder="Type a message..." disabled>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls" id="controls" style="display: none;">
+    <button class="control-btn" id="moveBtn">⬅️ Move</button>
+    <button class="control-btn" id="reactBtn">👍 React</button>
+    <button class="control-btn" id="chatBtn">💬 Chat</button>
+    <button class="control-btn" id="inviteBtn">➕ Invite</button>
+  </div>
+
+  <script>
+    const socket = io("http://localhost:5000");
+    
+    const loginScreen = document.getElementById("loginScreen");
+    const mainContainer = document.getElementById("mainContainer");
+    const controls = document.getElementById("controls");
+    const statusDiv = document.getElementById("status");
+    const usersCountDiv = document.getElementById("usersCount");
+    const mapArea = document.getElementById("mapArea");
+    const chatMessagesDiv = document.getElementById("chatMessages");
+    const chatInput = document.getElementById("chatInput");
+    const chatStatus = document.getElementById("chatStatus");
+    const usernameInput = document.getElementById("usernameInput");
+    const joinBtn = document.getElementById("joinBtn");
+
+    let myId = null;
+    let myName = "Player";
+    let player = { x: 400, y: 300, color: "#00ffcc" };
+    const players = {};
+    const keys = {};
+    const speed = 4;
+    const playerRadius = 25;
+
+    // Join button click
+    joinBtn.addEventListener("click", joinGame);
+    usernameInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") joinGame();
+    });
+
+    function joinGame() {
+      const name = usernameInput.value.trim();
+      if (name.length < 1) {
+        alert("Please enter your name!");
+        return;
+      }
+      myName = name;
+      
+      // Show main game
+      loginScreen.style.display = "none";
+      mainContainer.style.display = "flex";
+      controls.style.display = "flex";
+      statusDiv.style.display = "block";
+      usersCountDiv.style.display = "block";
+      
+      // Initialize game
+      initGame();
+    }
+
+    function initGame() {
+      const canvas = document.createElement("canvas");
+      canvas.id = "gameCanvas";
+      canvas.width = mapArea.offsetWidth;
+      canvas.height = mapArea.offsetHeight;
+      mapArea.appendChild(canvas);
+      
+      const ctx = canvas.getContext("2d");
+      
+      // Draw map
+      function drawMap() {
+        ctx.fillStyle = "#1a1a2e";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Grid lines
+        ctx.strokeStyle = "rgba(255,255,255,0.05)";
+        ctx.lineWidth = 1;
+        for (let i = 0; i < canvas.width; i += 50) {
+          ctx.beginPath();
+          ctx.moveTo(i, 0);
+          ctx.lineTo(i, canvas.height);
+          ctx.stroke();
+        }
+        for (let i = 0; i < canvas.height; i += 50) {
+          ctx.beginPath();
+          ctx.moveTo(0, i);
+          ctx.lineTo(canvas.width, i);
+          ctx.stroke();
+        }
+        
+        // Room areas
+        ctx.fillStyle = "rgba(255,255,255,0.02)";
+        ctx.fillRect(50, 50, 300, 200);
+        ctx.fillRect(400, 50, 300, 200);
+        ctx.fillRect(50, 300, 300, 200);
+        ctx.fillRect(400, 300, 300, 200);
+        
+        // Room labels
+        ctx.fillStyle = "rgba(255,255,255,0.15)";
+        ctx.font = "bold 14px Arial";
+        ctx.fillText("LOUNGE", 100, 80);
+        ctx.fillText("MEETING", 450, 80);
+        ctx.fillText("GAMING", 100, 330);
+        ctx.fillText("STUDY", 450, 330);
+      }
+
+      drawMap();
+
+      // Draw player
+      function drawPlayer(x, y, color, name, isSelf) {
+        ctx.save();
+        
+        ctx.shadowColor = color;
+        ctx.shadowBlur = isSelf ? 20 : 15;
+        
+        ctx.beginPath();
+        ctx.arc(x, y, playerRadius, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.strokeStyle = isSelf ? "#00ff88" : "#ff6b6b";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        
+        ctx.shadowBlur = 0;
+        
+        ctx.fillStyle = "white";
+        ctx.font = "bold 18px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(name.charAt(0).toUpperCase(), x, y);
+        
+        ctx.fillStyle = isSelf ? "#00ff88" : "#ff6b6b";
+        ctx.font = "12px Arial";
+        ctx.fillText(name, x, y + playerRadius + 20);
+        
+        ctx.restore();
+      }
+
+      // Game loop
+      function gameLoop() {
+        ctx.fillStyle = "#1a1a2e";
+        ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        
+        // Grid
+        ctx.strokeStyle = "rgba(255,255,255,0.05)";
+        for (let i = 0; i < ctx.canvas.width; i += 50) {
+          ctx.beginPath();
+          ctx.moveTo(i, 0);
+          ctx.lineTo(i, ctx.canvas.height);
+          ctx.stroke();
+        }
+        for (let i = 0; i < ctx.canvas.height; i += 50) {
+          ctx.beginPath();
+          ctx.moveTo(0, i);
+          ctx.lineTo(ctx.canvas.width, i);
+          ctx.stroke();
+        }
+        
+        // Rooms
+        ctx.fillStyle = "rgba(255,255,255,0.02)";
+        ctx.fillRect(50, 50, 300, 200);
+        ctx.fillRect(400, 50, 300, 200);
+        ctx.fillRect(50, 300, 300, 200);
+        ctx.fillRect(400, 300, 300, 200);
+        
+        ctx.fillStyle = "rgba(255,255,255,0.15)";
+        ctx.font = "bold 14px Arial";
+        ctx.fillText("LOUNGE", 100, 80);
+        ctx.fillText("MEETING", 450, 80);
+        ctx.fillText("GAMING", 100, 330);
+        ctx.fillText("STUDY", 450, 330);
+        
+        // Other players
+        for (let id in players) {
+          const p = players[id];
+          drawPlayer(p.x, p.y, p.color, p.name, false);
+        }
+        
+        // Self
+        drawPlayer(player.x, player.y, "#00ffcc", myName, true);
+        
+        requestAnimationFrame(gameLoop);
+      }
+
+      // Update position
+      function update() {
+        let moved = false;
+        if (keys["w"] || keys["ArrowUp"]) { player.y -= speed; moved = true; }
+        if (keys["s"] || keys["ArrowDown"]) { player.y += speed; moved = true; }
+        if (keys["a"] || keys["ArrowLeft"]) { player.x -= speed; moved = true; }
+        if (keys["d"] || keys["ArrowRight"]) { player.x += speed; moved = true; }
+
+        player.x = Math.max(playerRadius, Math.min(ctx.canvas.width - playerRadius, player.x));
+        player.y = Math.max(playerRadius, Math.min(ctx.canvas.height - playerRadius, player.y));
+
+        if (moved) {
+          socket.emit("move", { x: player.x, y: player.y, name: myName });
+        }
+
+        requestAnimationFrame(update);
+      }
+
+      // Key listeners
+      window.addEventListener("keydown", (e) => keys[e.key] = true);
+      window.addEventListener("keyup", (e) => keys[e.key] = false);
+
+      // Socket events
+      socket.on("connect", () => {
+        myId = socket.id;
+        statusDiv.textContent = "✅ Connected";
+        statusDiv.classList.add("connected");
+      });
+
+      socket.on("initUsers", (users) => {
+        for (let id in users) {
+          if (id !== socket.id) {
+            players[id] = { 
+              ...users[id], 
+              color: "#ff6b6b",
+              name: users[id].name || "Player"
+            };
+          }
+        }
+        updateUsersCount();
+      });
+
+      socket.on("userMoved", ({ id, x, y, name }) => {
+        if (players[id]) {
+          players[id].x = x;
+          players[id].y = y;
+          if (name) players[id].name = name;
+        } else {
+          players[id] = { x, y, color: "#ff6b6b", name: name || "Player" };
+        }
+        updateUsersCount();
+      });
+
+      socket.on("userLeft", (id) => {
+        delete players[id];
+        updateUsersCount();
+      });
+
+      socket.on("chatEnabled", (id) => {
+        const otherName = players[id]?.name || "Player";
+        chatStatus.textContent = `Chat enabled with ${otherName}!`;
+        chatInput.disabled = false;
+        chatInput.placeholder = "Type a message...";
+      });
+
+      socket.on("chatDisabled", (id) => {
+        chatStatus.textContent = "Move close to someone to chat";
+        chatInput.disabled = true;
+        chatInput.placeholder = "Walk closer to chat...";
+      });
+
+      function updateUsersCount() {
+        const count = Object.keys(players).length + 1;
+        usersCountDiv.textContent = `👥 ${count} Online`;
+      }
+
+      // Send message
+      chatInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter" && chatInput.value.trim()) {
+          const msg = document.createElement("div");
+          msg.className = "chat-message self";
+          msg.innerHTML = `<div class="text">${chatInput.value}</div>`;
+          chatMessagesDiv.appendChild(msg);
+          chatInput.value = "";
+          chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
+        }
+      });
+
+      // Button events
+      document.getElementById("moveBtn").addEventListener("click", function() {
+        this.classList.toggle("active");
+      });
+
+      // Start game
+      gameLoop();
+      update();
+    }
+  </script>
+</body>
+</html>
